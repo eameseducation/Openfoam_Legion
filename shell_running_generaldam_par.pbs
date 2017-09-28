@@ -1,0 +1,167 @@
+#!/bin/bash -l
+
+###############################################
+#
+#      Batch script to run the dam problem
+#
+##################################################
+
+
+resolution1=0.03
+resolution2=0.005
+no_obstacles=1
+no_layers=100
+lock_length=1.0
+width=0.15
+total_length=4.0
+obstacle_length=0.08
+obstacle_width=$obstacle_length
+obstacle_centre=1.0
+Height=0.60
+
+###############################################
+#
+#      setinitial height information
+#
+##################################################
+
+h_L=0.02
+h_0=0.50
+Length_simulation=(0.4 0.8 1.0 2.0 4.0 6.0 8.0 10)
+
+###############################################
+#
+#      Solver information
+#
+##################################################
+
+Runtime=3.0
+Numberofcores=4
+
+###############################################
+#
+#      Start of bash for parallel
+#
+##################################################
+
+
+
+#$ -S /bin/bash
+#$ -l h_rt=0:20:0
+#$ -l mem=3G
+#$ -l tmpfs=15G
+#$ -t 1-8
+#$ -N Dam_interfoam_settingvariables
+#$ -wd /home/ucemiea/Scratch/Dam_break/
+number=$SGE_TASK_ID
+
+module load mesa gmsh
+module load python/2.7.9
+module load boost/1_54_0/mpi/intel-2015-update2
+module load openfoam/2.3.1/intel-2015-update2
+
+LOCATION=$(pwd)
+lock_length=${Length_simulation[$number-1]}
+name_of_job=Dambreak_$locklength"_"$obstacle_centre"_"$obstacle_width"_"$width"_"$width"_"$h"_"0"_"$h_L
+LOCATION_WK=$LOCATION/Interfoam$name_of_job"_"$lock_length"_"$number
+cp -r $LOCATION/Interfoam_par0 $LOCATION_WK
+ 
+echo "######################################"
+echo "Testing the data in gmsh with openfoam"
+echo $LOCATION_WK
+echo $number
+echo "######################################"
+
+## modify the geo file to include the information
+cp $LOCATION_WK/mesh/general_dam_break.geo $LOCATION_WK/mesh/temporary.geo
+sed 's/aaaa/'"$resolution1"'/g' <$LOCATION_WK/mesh/temporary.geo >$LOCATION_WK/mesh/temporary1.geo
+sed 's/bbbb/'"$resolution2"'/g' <$LOCATION_WK/mesh/temporary1.geo >$LOCATION_WK/mesh/temporary2.geo
+sed 's/cccc/'"$no_obstacles"'/g' <$LOCATION_WK/mesh/temporary2.geo >$LOCATION_WK/mesh/temporary3.geo
+sed 's/dddd/'"$no_layers"'/g' <$LOCATION_WK/mesh/temporary3.geo >$LOCATION_WK/mesh/temporary4.geo
+sed 's/eeee/'"$lock_length"'/g' <$LOCATION_WK/mesh/temporary4.geo >$LOCATION_WK/mesh/temporary5.geo
+sed 's/ffff/'"$width"'/g' <$LOCATION_WK/mesh/temporary5.geo >$LOCATION_WK/mesh/temporary6.geo
+sed 's/gggg/'"$total_length"'/g' <$LOCATION_WK/mesh/temporary6.geo >$LOCATION_WK/mesh/temporary7.geo
+sed 's/hhhh/'"$obstacle_length"'/g' <$LOCATION_WK/mesh/temporary7.geo >$LOCATION_WK/mesh/temporary8.geo
+sed 's/iiii/'"$obstacle_centre"'/g' <$LOCATION_WK/mesh/temporary8.geo >$LOCATION_WK/mesh/temporary9.geo
+sed 's/jjjj/'"$Height"'/g' <$LOCATION_WK/mesh/temporary9.geo >$LOCATION_WK/mesh/temporary10.geo
+echo "######################################"
+echo "## Running gmsh "
+echo "######################################"
+
+filemesh_name=Dambody$number.msh
+gmsh $LOCATION_WK/mesh/temporary10.geo -3 -o $LOCATION_WK/$filemesh_name
+
+echo "######################################"
+echo "## Cleaning up the temporary files"
+echo "######################################"
+
+rm $LOCATION_WK/mesh/temporary*.geo
+
+echo "######################################"
+echo "## Testing the data in gmsh with openfoam"
+echo $LOCATION_WK
+echo $number
+echo "######################################"
+
+gmshToFoam $LOCATION_WK/$filemesh_name -case $LOCATION_WK
+
+echo "######################################"
+echo "Testing the data in gmsh with openfoam"
+echo $LOCATION_WK
+echo $number
+echo "######################################"
+cd $LOCATION_WK
+checkMesh 
+
+echo "######################################"
+echo "Testing the data in gmsh with openfoam"
+echo $LOCATION
+echo $number
+echo "######################################"
+
+echo "######################################"
+echo "## Geometrical Constraints" 
+echo "resolution1=" $resolution1
+echo "resolution2=" $resolution2
+echo "no_obstacles=" $no_obstacles
+echo "no_layers=" $no_layers
+echo "lock_length=" $lock_length
+echo "width=" $width
+echo "total_length=" $total_length
+echo "obstacle_length=" $obstacle_length
+echo "obstacle_width=" $obstacle_width
+echo "obstacle_centre=" $obstacle_centre
+echo "Height=" $Height
+echo "######################################"
+
+echo "######################################"
+echo "##"
+echo "## Modifying the controlDict"
+echo "##"
+echo "######################################"
+sed 's/xxxx/'"$Runtime"'/g' <$LOCATION_WK/system/controlDict_bak >$LOCATION_WK/system/controlDict
+
+cp $LOCATION_WK/alpha.water_bak $LOCATION_WK/0/alpha.water
+cp   $LOCATION_WK/system/setFieldsDict_bak $LOCATION_WK/system/temporary
+sed 's/aaaa/'"$lock_length"'/g' <$LOCATION_WK/system/temporary >$LOCATION_WK/system/temporary1
+sed 's/bbbb/'"$width"'/g' <$LOCATION_WK/system/temporary1 >$LOCATION_WK/system/temporary2
+sed 's/cccc/'"$h_0"'/g' <$LOCATION_WK/system/temporary2 >$LOCATION_WK/system/temporary3
+sed 's/dddd/'"$total_length"'/g' <$LOCATION_WK/system/temporary3 >$LOCATION_WK/system/temporary4
+sed 's/eeee/'"$h_L"'/g' <$LOCATION_WK/system/temporary4 >$LOCATION_WK/system/setFieldsDict
+rm $LOCATION_WK/system/temporary*
+setFields
+
+echo "######################################"
+echo "##"
+echo "## Decompose par - change the number of cores"
+echo "##"
+echo "######################################"
+sed 's/xxxx/'"$Numberofcores"'/g' <$LOCATION_WK/system/decomposeParDict_bak >$LOCATION_WK/system/decomposeParDict
+
+decomposePar -force
+
+
+
+ 
+
+

@@ -1,0 +1,74 @@
+#!/bin/bash -l
+
+###############################################
+#
+#      Batch script to run the dam problem
+#
+##################################################
+
+
+resolution1=0.03
+resolution2=0.005
+no_obstacles=1
+no_layers=10
+lock_length=1.0
+width=0.15
+total_length=4.0
+obstacle_length=0.08
+obstacle_width=$obstacle_length
+obstacle_centre=1.0
+Height=0.60
+
+###############################################
+#
+#      setinitial height information
+#
+##################################################
+
+h_L=0.02
+h_0=0.50
+Length_simulation=(0.4 0.8 1.0 2.0 4.0 6.0 8.0 10)
+
+###############################################
+#
+#      Solver information
+#
+##################################################
+
+Runtime=3.0
+Numberofcores=4
+
+###############################################
+#
+#      Start of bash for parallel
+#
+##################################################
+
+
+#!/bin/bash -l
+#$ -S /bin/bash
+#$ -l h_rt=10:0:0
+#$ -l mem=2G
+#$ -l tmpfs=15G
+#$ -N Dam_interfoam_par
+#$ -pe mpi 4
+#$ -t 1-1
+#$ -wd /home/ucemiea/Scratch/Dam_break/
+number=8
+#$ -ac allow=TU
+
+module load python/2.7.9
+module load boost/1_54_0/mpi/intel-2015-update2
+module load openfoam/2.3.1/intel-2015-update2
+
+LOCATION=$(pwd)
+lock_length=${Length_simulation[$number-1]}
+name_of_job=Dambreak_$locklength"_"$obstacle_centre"_"$obstacle_width"_"$width"_"$width"_"$h"_"0"_"$h_L
+LOCATION_WK=$LOCATION/Interfoam$name_of_job"_"$lock_length"_"$number
+cd $LOCATION_WK
+gerun interFoam -parallel
+
+
+
+
+
